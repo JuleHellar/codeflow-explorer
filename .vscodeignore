@@ -1,0 +1,7 @@
+.vscode/**
+src/**
+python/**
+test/**
+media/main.js
+media/main.css
+*.map

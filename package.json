@@ -1,0 +1,39 @@
+{
+  "name": "codeflow-explorer",
+  "displayName": "CodeFlow Explorer",
+  "description": "Explore Python and Fortran files, procedures, arguments, return values and calls.",
+  "version": "0.2.0",
+  "publisher": "your-name",
+  "engines": { "vscode": "^1.85.0" },
+  "main": "./out/extension.js",
+  "activationEvents": ["onCommand:codeflowExplorer.analyze"],
+  "contributes": {
+    "commands": [
+      { "command": "codeflowExplorer.analyze", "title": "CodeFlow: Analyse Python and Fortran Workspace" }
+    ],
+    "configuration": {
+      "title": "CodeFlow Explorer",
+      "properties": {
+        "codeflowExplorer.pythonPath": {
+          "type": "string",
+          "default": "python",
+          "description": "Python executable used for analysis (for example python, python3, or a venv interpreter path)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p . && npm run build:webview",
+    "build:webview": "esbuild media/main.js --bundle --format=iife --platform=browser --outfile=media/bundle.js",
+    "watch": "tsc -watch -p .",
+    "package": "vsce package"
+  },
+  "dependencies": { "mermaid": "^11.4.1" },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.2.1",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.7.2"
+  }
+}

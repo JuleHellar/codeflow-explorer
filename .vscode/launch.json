@@ -1,0 +1,11 @@
+{
+  "version": "0.2.0",
+  "configurations": [{
+    "name": "Run CodeFlow Explorer",
+    "type": "extensionHost",
+    "request": "launch",
+    "args": ["--extensionDevelopmentPath=${workspaceFolder}", "${workspaceFolder}/test/fixture_project"],
+    "outFiles": ["${workspaceFolder}/out/**/*.js"],
+    "preLaunchTask": "compile"
+  }]
+}

@@ -1,0 +1,6 @@
+Python analyser smoke test passed.
+Python files: 9
+Functions: 19
+Classes: 1
+Resolved call edges: 10
+Warnings: 0

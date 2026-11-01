@@ -1,0 +1,32 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "shell",
+      "label": "compile: extension",
+      "command": "${workspaceFolder}\\node_modules\\.bin\\tsc.cmd",
+      "args": ["-p", "."],
+      "problemMatcher": "$tsc"
+    },
+    {
+      "type": "shell",
+      "label": "compile: webview",
+      "command": "${workspaceFolder}\\node_modules\\.bin\\esbuild.cmd",
+      "args": [
+        "media/main.js",
+        "--bundle",
+        "--format=iife",
+        "--platform=browser",
+        "--outfile=media/bundle.js"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "compile",
+      "dependsOn": ["compile: extension", "compile: webview"],
+      "dependsOrder": "parallel",
+      "problemMatcher": [],
+      "group": {"kind": "build", "isDefault": true}
+    }
+  ]
+}
