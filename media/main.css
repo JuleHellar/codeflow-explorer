@@ -1,4 +1,9 @@
-:root { color-scheme: light dark; }
+:root {
+  color-scheme: light dark;
+  --codeflow-file-blue: #0e1f6e;
+  --codeflow-class-blue: #0e316e;
+  --codeflow-function-blue: #0e496e;
+}
 * { box-sizing: border-box; }
 body {
   margin: 0;
@@ -15,13 +20,19 @@ body {
   position: relative;
   flex: 0 0 auto;
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
   padding: 10px 14px;
   background: var(--vscode-sideBar-background);
   border-bottom: 1px solid var(--vscode-panel-border);
 }
-.toolbar strong { margin-right: 10px; }
+.toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.toolbar-actions { justify-content: flex-start; }
 #filePicker {
   min-width: 220px;
   max-width: min(45vw, 600px);
@@ -35,6 +46,12 @@ button, select {
 }
 button { cursor: pointer; }
 #resetFile { padding: 6px 10px; }
+#viewBack, #viewForward { padding: 6px 10px; }
+#viewBack:disabled, #viewForward:disabled { opacity: .55; cursor: default; }
+#reanalyze { padding: 6px 10px; }
+#reanalyze:disabled { opacity: .65; cursor: wait; }
+#saveAnalysis { padding: 6px 10px; }
+#saveAnalysis:disabled { opacity: .65; cursor: wait; }
 #summary {
   margin-left: auto;
   color: var(--vscode-descriptionForeground);
@@ -145,14 +162,14 @@ button { cursor: pointer; }
 }
 .external-callers, .external-callees {
   display: flex;
-  flex: 0 0 160px;
+  flex: 0 0 240px;
   flex-direction: column;
   gap: 14px;
   padding-top: 100px;
 }
 .external-function {
-  width: 150px;
-  border: 1.5px solid #3987c9;
+  width: 230px;
+  border: 1.5px solid var(--codeflow-function-blue);
   background: var(--vscode-editor-background);
   box-shadow: 0 1px 3px rgba(0,0,0,.12);
   cursor: pointer;
@@ -160,20 +177,42 @@ button { cursor: pointer; }
 .external-function-file {
   padding: 6px 8px;
   color: #fff;
-  background: #3987c9;
+  background: var(--codeflow-file-blue);
   font-size: 11px;
   font-weight: 600;
   overflow-wrap: anywhere;
 }
+.external-function-file::after,
+.file-title::after,
+.class-title::after,
+.external-function-title::after,
+.function-title::after {
+  margin-left: 8px;
+  color: rgba(255,255,255,.72);
+  font-size: .85em;
+  font-style: italic;
+  font-weight: 400;
+  white-space: nowrap;
+}
+.external-function-file::after,
+.file-title::after { content: "File"; }
+.class-title::after { content: "Class"; }
+.external-function-title::after,
+.function-title::after { content: "Function"; }
 .external-function-title {
+  display: block;
   width: 100%;
   min-height: 34px;
   padding: 7px 8px;
   border: 0;
-  border-top: 1px solid #3987c9;
+  border-top: 1px solid var(--codeflow-function-blue);
   border-radius: 0;
+  color: #fff;
+  background: var(--codeflow-function-blue);
+  font: inherit;
   text-align: left;
   overflow-wrap: anywhere;
+  cursor: pointer;
 }
 .file-separator {
   flex: 0 0 0;
@@ -187,15 +226,15 @@ button { cursor: pointer; }
   flex: 0 0 580px;
   width: 580px;
   min-height: 300px;
-  border: 1.5px solid #3987c9;
-  background: color-mix(in srgb, var(--vscode-editor-background) 93%, #3987c9 7%);
+  border: 1.5px solid var(--codeflow-file-blue);
+  background: color-mix(in srgb, var(--vscode-editor-background) 93%, var(--codeflow-file-blue) 7%);
 }
 .file-title, .class-title {
   display: inline-block;
   min-width: 145px;
   padding: 9px 14px;
   color: #fff;
-  background: #3987c9;
+  background: var(--codeflow-file-blue);
   font-weight: 600;
 }
 .file-content {
@@ -207,12 +246,12 @@ button { cursor: pointer; }
 }
 .class-box {
   width: 100%;
-  border: 1px solid #668fb3;
-  background: color-mix(in srgb, var(--vscode-editor-background) 96%, #668fb3 4%);
+  border: 1px solid var(--codeflow-class-blue);
+  background: color-mix(in srgb, var(--vscode-editor-background) 96%, var(--codeflow-class-blue) 4%);
 }
 .class-title {
   min-width: 125px;
-  background: #668fb3;
+  background: var(--codeflow-class-blue);
 }
 .class-methods {
   display: flex;
@@ -224,7 +263,7 @@ button { cursor: pointer; }
   position: relative;
   width: 420px;
   min-height: 128px;
-  border: 1.5px solid #3987c9;
+  border: 1.5px solid var(--codeflow-function-blue);
   background: var(--vscode-editor-background);
   box-shadow: 0 1px 3px rgba(0,0,0,.12);
 }
@@ -243,9 +282,23 @@ button { cursor: pointer; }
   min-width: 110px;
   max-width: 190px;
   color: #fff;
-  background: #3987c9;
+  background: var(--codeflow-function-blue);
   text-align: left;
   font-weight: 600;
+}
+.box-note {
+  display: block;
+  width: calc(100% - 20px);
+  min-height: 48px;
+  margin: 8px 10px;
+  padding: 6px 8px;
+  resize: vertical;
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border);
+  border-radius: 3px;
+  font: inherit;
+  cursor: text;
 }
 .variable-panel {
   display: flex;

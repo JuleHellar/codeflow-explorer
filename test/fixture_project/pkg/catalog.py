@@ -6,6 +6,14 @@ PRODUCTS = {
     "pen": {"name": "Fountain pen", "price": 24.0, "tax_rate": 0.08},
 }
 
+def search_products(query, max_price=None):
+    matches = [
+        {**product, "sku": sku}
+        for sku, product in PRODUCTS.items()
+        if query.lower() in product["name"].lower()
+        and (max_price is None or product["price"] <= max_price)
+    ]
+    return matches
 
 def find_product(sku):
     product = PRODUCTS.get(sku)
@@ -15,11 +23,4 @@ def find_product(sku):
     return {**product, "sku": sku, "stock": stock}
 
 
-def search_products(query, max_price=None):
-    matches = [
-        {**product, "sku": sku}
-        for sku, product in PRODUCTS.items()
-        if query.lower() in product["name"].lower()
-        and (max_price is None or product["price"] <= max_price)
-    ]
-    return matches
+

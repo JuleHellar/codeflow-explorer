@@ -1,0 +1,773 @@
+{
+  "files": [
+    {
+      "path": "main.py",
+      "module": "main",
+      "items": [
+        {
+          "kind": "function",
+          "id": "function:main:main.main",
+          "line": 7,
+          "order": 7
+        }
+      ],
+      "classes": [],
+      "functions": [
+        {
+          "id": "function:main:main.main",
+          "name": "main",
+          "qualifiedName": "main.main",
+          "file": "main.py",
+          "line": 7,
+          "endLine": 14,
+          "order": 7,
+          "params": [],
+          "returns": [
+            "receipt"
+          ],
+          "calls": [
+            "function:pkg.customer:pkg.customer.load_customer",
+            "function:pkg.customer:pkg.customer.update_contact",
+            "function:pkg.catalog:pkg.catalog.find_product",
+            "function:pkg.billing:pkg.billing.create_invoice",
+            "function:pkg.reporting:pkg.reporting.render_receipt",
+            "function:pkg.reporting:pkg.reporting.send_receipt"
+          ],
+          "externalCalls": [],
+          "parentClass": null,
+          "note": "coucou testwqq"
+        }
+      ]
+    },
+    {
+      "path": "pkg/__init__.py",
+      "module": "pkg",
+      "items": [],
+      "classes": [],
+      "functions": []
+    },
+    {
+      "path": "pkg/billing.py",
+      "module": "pkg.billing",
+      "items": [
+        {
+          "kind": "function",
+          "id": "function:pkg.billing:pkg.billing.calculate_total",
+          "line": 5,
+          "order": 5
+        },
+        {
+          "kind": "function",
+          "id": "function:pkg.billing:pkg.billing.create_invoice",
+          "line": 10,
+          "order": 10
+        },
+        {
+          "kind": "class",
+          "id": "class:pkg.billing:pkg.billing.Invoice",
+          "line": 27,
+          "order": 27
+        }
+      ],
+      "classes": [
+        {
+          "id": "class:pkg.billing:pkg.billing.Invoice",
+          "name": "Invoice",
+          "qualifiedName": "pkg.billing.Invoice",
+          "file": "pkg/billing.py",
+          "line": 27,
+          "order": 27,
+          "methods": [
+            {
+              "id": "function:pkg.billing:pkg.billing.Invoice.__init__",
+              "name": "__init__",
+              "qualifiedName": "pkg.billing.Invoice.__init__",
+              "file": "pkg/billing.py",
+              "line": 28,
+              "endLine": 29,
+              "order": 28,
+              "params": [
+                {
+                  "name": "self"
+                },
+                {
+                  "name": "amount"
+                }
+              ],
+              "returns": [],
+              "calls": [],
+              "externalCalls": [],
+              "parentClass": "class:pkg.billing:pkg.billing.Invoice"
+            },
+            {
+              "id": "function:pkg.billing:pkg.billing.Invoice.gross",
+              "name": "gross",
+              "qualifiedName": "pkg.billing.Invoice.gross",
+              "file": "pkg/billing.py",
+              "line": 31,
+              "endLine": 33,
+              "order": 31,
+              "params": [
+                {
+                  "name": "self"
+                },
+                {
+                  "name": "rate"
+                }
+              ],
+              "returns": [
+                "result"
+              ],
+              "calls": [],
+              "externalCalls": [],
+              "parentClass": "class:pkg.billing:pkg.billing.Invoice"
+            }
+          ]
+        }
+      ],
+      "functions": [
+        {
+          "id": "function:pkg.billing:pkg.billing.calculate_total",
+          "name": "calculate_total",
+          "qualifiedName": "pkg.billing.calculate_total",
+          "file": "pkg/billing.py",
+          "line": 5,
+          "endLine": 7,
+          "order": 5,
+          "params": [
+            {
+              "name": "customer"
+            }
+          ],
+          "returns": [
+            "total"
+          ],
+          "calls": [],
+          "externalCalls": [],
+          "parentClass": null
+        },
+        {
+          "id": "function:pkg.billing:pkg.billing.create_invoice",
+          "name": "create_invoice",
+          "qualifiedName": "pkg.billing.create_invoice",
+          "file": "pkg/billing.py",
+          "line": 10,
+          "endLine": 24,
+          "order": 10,
+          "params": [
+            {
+              "name": "customer"
+            },
+            {
+              "name": "product"
+            },
+            {
+              "name": "quantity"
+            }
+          ],
+          "returns": [
+            "{'customer_id': customer['id'], 'product': product['name'], 'quantity': quantity, 'subtotal': subtotal, 'discount': discount, 'tax': tax, 'total': total}"
+          ],
+          "calls": [
+            "function:pkg.promotions:pkg.promotions.discount_for_customer",
+            "function:pkg.tax:pkg.tax.calculate_tax"
+          ],
+          "externalCalls": [],
+          "parentClass": null
+        },
+        {
+          "id": "function:pkg.billing:pkg.billing.Invoice.__init__",
+          "name": "__init__",
+          "qualifiedName": "pkg.billing.Invoice.__init__",
+          "file": "pkg/billing.py",
+          "line": 28,
+          "endLine": 29,
+          "order": 28,
+          "params": [
+            {
+              "name": "self"
+            },
+            {
+              "name": "amount"
+            }
+          ],
+          "returns": [],
+          "calls": [],
+          "externalCalls": [],
+          "parentClass": "class:pkg.billing:pkg.billing.Invoice"
+        },
+        {
+          "id": "function:pkg.billing:pkg.billing.Invoice.gross",
+          "name": "gross",
+          "qualifiedName": "pkg.billing.Invoice.gross",
+          "file": "pkg/billing.py",
+          "line": 31,
+          "endLine": 33,
+          "order": 31,
+          "params": [
+            {
+              "name": "self"
+            },
+            {
+              "name": "rate"
+            }
+          ],
+          "returns": [
+            "result"
+          ],
+          "calls": [],
+          "externalCalls": [],
+          "parentClass": "class:pkg.billing:pkg.billing.Invoice"
+        }
+      ]
+    },
+    {
+      "path": "pkg/catalog.py",
+      "module": "pkg.catalog",
+      "items": [
+        {
+          "kind": "function",
+          "id": "function:pkg.catalog:pkg.catalog.search_products",
+          "line": 9,
+          "order": 9
+        },
+        {
+          "kind": "function",
+          "id": "function:pkg.catalog:pkg.catalog.find_product",
+          "line": 18,
+          "order": 18
+        }
+      ],
+      "classes": [],
+      "functions": [
+        {
+          "id": "function:pkg.catalog:pkg.catalog.search_products",
+          "name": "search_products",
+          "qualifiedName": "pkg.catalog.search_products",
+          "file": "pkg/catalog.py",
+          "line": 9,
+          "endLine": 16,
+          "order": 9,
+          "params": [
+            {
+              "name": "query"
+            },
+            {
+              "name": "max_price"
+            }
+          ],
+          "returns": [
+            "matches"
+          ],
+          "calls": [],
+          "externalCalls": [
+            "PRODUCTS.items",
+            "query.lower",
+            "lower"
+          ],
+          "parentClass": null,
+          "note": "qgopegpqoopeogmpMe\ne[gwm[\n\nwgemwgmoeg"
+        },
+        {
+          "id": "function:pkg.catalog:pkg.catalog.find_product",
+          "name": "find_product",
+          "qualifiedName": "pkg.catalog.find_product",
+          "file": "pkg/catalog.py",
+          "line": 18,
+          "endLine": 23,
+          "order": 18,
+          "params": [
+            {
+              "name": "sku"
+            }
+          ],
+          "returns": [
+            "None",
+            "{**product, 'sku': sku, 'stock': stock}"
+          ],
+          "calls": [
+            "function:pkg.inventory:pkg.inventory.available_quantity"
+          ],
+          "externalCalls": [
+            "PRODUCTS.get"
+          ],
+          "parentClass": null,
+          "note": ""
+        }
+      ]
+    },
+    {
+      "path": "pkg/customer.py",
+      "module": "pkg.customer",
+      "items": [
+        {
+          "kind": "function",
+          "id": "function:pkg.customer:pkg.customer.load_customer",
+          "line": 1,
+          "order": 1
+        },
+        {
+          "kind": "function",
+          "id": "function:pkg.customer:pkg.customer.update_contact",
+          "line": 11,
+          "order": 11
+        },
+        {
+          "kind": "function",
+          "id": "function:pkg.customer:pkg.customer.customer_label",
+          "line": 19,
+          "order": 19
+        }
+      ],
+      "classes": [],
+      "functions": [
+        {
+          "id": "function:pkg.customer:pkg.customer.load_customer",
+          "name": "load_customer",
+          "qualifiedName": "pkg.customer.load_customer",
+          "file": "pkg/customer.py",
+          "line": 1,
+          "endLine": 8,
+          "order": 1,
+          "params": [
+            {
+              "name": "customer_id"
+            },
+            {
+              "name": "include_history"
+            }
+          ],
+          "returns": [
+            "customer"
+          ],
+          "calls": [],
+          "externalCalls": [],
+          "parentClass": null,
+          "note": "jnkl"
+        },
+        {
+          "id": "function:pkg.customer:pkg.customer.update_contact",
+          "name": "update_contact",
+          "qualifiedName": "pkg.customer.update_contact",
+          "file": "pkg/customer.py",
+          "line": 11,
+          "endLine": 16,
+          "order": 11,
+          "params": [
+            {
+              "name": "customer"
+            },
+            {
+              "name": "email"
+            },
+            {
+              "name": "phone"
+            }
+          ],
+          "returns": [
+            "customer"
+          ],
+          "calls": [],
+          "externalCalls": [],
+          "parentClass": null
+        },
+        {
+          "id": "function:pkg.customer:pkg.customer.customer_label",
+          "name": "customer_label",
+          "qualifiedName": "pkg.customer.customer_label",
+          "file": "pkg/customer.py",
+          "line": 19,
+          "endLine": 20,
+          "order": 19,
+          "params": [
+            {
+              "name": "customer"
+            }
+          ],
+          "returns": [
+            "f\"{customer['name']} ({customer['id']})\""
+          ],
+          "calls": [],
+          "externalCalls": [],
+          "parentClass": null
+        }
+      ]
+    },
+    {
+      "path": "pkg/inventory.py",
+      "module": "pkg.inventory",
+      "items": [
+        {
+          "kind": "function",
+          "id": "function:pkg.inventory:pkg.inventory.available_quantity",
+          "line": 4,
+          "order": 4
+        },
+        {
+          "kind": "function",
+          "id": "function:pkg.inventory:pkg.inventory.reserve_stock",
+          "line": 8,
+          "order": 8
+        }
+      ],
+      "classes": [],
+      "functions": [
+        {
+          "id": "function:pkg.inventory:pkg.inventory.available_quantity",
+          "name": "available_quantity",
+          "qualifiedName": "pkg.inventory.available_quantity",
+          "file": "pkg/inventory.py",
+          "line": 4,
+          "endLine": 5,
+          "order": 4,
+          "params": [
+            {
+              "name": "sku"
+            }
+          ],
+          "returns": [
+            "STOCK.get(sku, 0)"
+          ],
+          "calls": [],
+          "externalCalls": [
+            "STOCK.get"
+          ],
+          "parentClass": null
+        },
+        {
+          "id": "function:pkg.inventory:pkg.inventory.reserve_stock",
+          "name": "reserve_stock",
+          "qualifiedName": "pkg.inventory.reserve_stock",
+          "file": "pkg/inventory.py",
+          "line": 8,
+          "endLine": 13,
+          "order": 8,
+          "params": [
+            {
+              "name": "sku"
+            },
+            {
+              "name": "quantity"
+            }
+          ],
+          "returns": [
+            "{'reserved': False, 'available': available}",
+            "{'reserved': True, 'remaining': STOCK[sku]}"
+          ],
+          "calls": [],
+          "externalCalls": [
+            "available_quantity"
+          ],
+          "parentClass": null
+        }
+      ]
+    },
+    {
+      "path": "pkg/promotions.py",
+      "module": "pkg.promotions",
+      "items": [
+        {
+          "kind": "function",
+          "id": "function:pkg.promotions:pkg.promotions.discount_for_customer",
+          "line": 1,
+          "order": 1
+        },
+        {
+          "kind": "function",
+          "id": "function:pkg.promotions:pkg.promotions.discount_rate",
+          "line": 7,
+          "order": 7
+        }
+      ],
+      "classes": [],
+      "functions": [
+        {
+          "id": "function:pkg.promotions:pkg.promotions.discount_for_customer",
+          "name": "discount_for_customer",
+          "qualifiedName": "pkg.promotions.discount_for_customer",
+          "file": "pkg/promotions.py",
+          "line": 1,
+          "endLine": 4,
+          "order": 1,
+          "params": [
+            {
+              "name": "customer"
+            },
+            {
+              "name": "subtotal"
+            }
+          ],
+          "returns": [
+            "round(discount, 2)"
+          ],
+          "calls": [],
+          "externalCalls": [
+            "discount_rate",
+            "round"
+          ],
+          "parentClass": null
+        },
+        {
+          "id": "function:pkg.promotions:pkg.promotions.discount_rate",
+          "name": "discount_rate",
+          "qualifiedName": "pkg.promotions.discount_rate",
+          "file": "pkg/promotions.py",
+          "line": 7,
+          "endLine": 10,
+          "order": 7,
+          "params": [
+            {
+              "name": "customer"
+            }
+          ],
+          "returns": [
+            "0.1",
+            "0.0"
+          ],
+          "calls": [],
+          "externalCalls": [
+            "customer.get"
+          ],
+          "parentClass": null
+        }
+      ]
+    },
+    {
+      "path": "pkg/reporting.py",
+      "module": "pkg.reporting",
+      "items": [
+        {
+          "kind": "function",
+          "id": "function:pkg.reporting:pkg.reporting.render_receipt",
+          "line": 4,
+          "order": 4
+        },
+        {
+          "kind": "function",
+          "id": "function:pkg.reporting:pkg.reporting.format_currency",
+          "line": 15,
+          "order": 15
+        },
+        {
+          "kind": "function",
+          "id": "function:pkg.reporting:pkg.reporting.send_receipt",
+          "line": 19,
+          "order": 19
+        }
+      ],
+      "classes": [],
+      "functions": [
+        {
+          "id": "function:pkg.reporting:pkg.reporting.render_receipt",
+          "name": "render_receipt",
+          "qualifiedName": "pkg.reporting.render_receipt",
+          "file": "pkg/reporting.py",
+          "line": 4,
+          "endLine": 12,
+          "order": 4,
+          "params": [
+            {
+              "name": "customer"
+            },
+            {
+              "name": "invoice"
+            },
+            {
+              "name": "currency"
+            }
+          ],
+          "returns": [
+            "'\\n'.join(lines)"
+          ],
+          "calls": [
+            "function:pkg.customer:pkg.customer.customer_label"
+          ],
+          "externalCalls": [
+            "format_currency",
+            "join"
+          ],
+          "parentClass": null
+        },
+        {
+          "id": "function:pkg.reporting:pkg.reporting.format_currency",
+          "name": "format_currency",
+          "qualifiedName": "pkg.reporting.format_currency",
+          "file": "pkg/reporting.py",
+          "line": 15,
+          "endLine": 16,
+          "order": 15,
+          "params": [
+            {
+              "name": "amount"
+            },
+            {
+              "name": "symbol"
+            }
+          ],
+          "returns": [
+            "f'{symbol}{amount:,.2f}'"
+          ],
+          "calls": [],
+          "externalCalls": [],
+          "parentClass": null
+        },
+        {
+          "id": "function:pkg.reporting:pkg.reporting.send_receipt",
+          "name": "send_receipt",
+          "qualifiedName": "pkg.reporting.send_receipt",
+          "file": "pkg/reporting.py",
+          "line": 19,
+          "endLine": 22,
+          "order": 19,
+          "params": [
+            {
+              "name": "email"
+            },
+            {
+              "name": "receipt"
+            },
+            {
+              "name": "dry_run"
+            }
+          ],
+          "returns": [
+            "{'sent': False, 'recipient': email, 'preview': receipt}",
+            "{'sent': True, 'recipient': email}"
+          ],
+          "calls": [],
+          "externalCalls": [],
+          "parentClass": null
+        }
+      ]
+    },
+    {
+      "path": "pkg/tax.py",
+      "module": "pkg.tax",
+      "items": [
+        {
+          "kind": "function",
+          "id": "function:pkg.tax:pkg.tax.calculate_tax",
+          "line": 1,
+          "order": 1
+        },
+        {
+          "kind": "function",
+          "id": "function:pkg.tax:pkg.tax.split_tax",
+          "line": 6,
+          "order": 6
+        }
+      ],
+      "classes": [],
+      "functions": [
+        {
+          "id": "function:pkg.tax:pkg.tax.calculate_tax",
+          "name": "calculate_tax",
+          "qualifiedName": "pkg.tax.calculate_tax",
+          "file": "pkg/tax.py",
+          "line": 1,
+          "endLine": 3,
+          "order": 1,
+          "params": [
+            {
+              "name": "amount"
+            },
+            {
+              "name": "rate"
+            }
+          ],
+          "returns": [
+            "round(tax, 2)"
+          ],
+          "calls": [],
+          "externalCalls": [
+            "round"
+          ],
+          "parentClass": null
+        },
+        {
+          "id": "function:pkg.tax:pkg.tax.split_tax",
+          "name": "split_tax",
+          "qualifiedName": "pkg.tax.split_tax",
+          "file": "pkg/tax.py",
+          "line": 6,
+          "endLine": 9,
+          "order": 6,
+          "params": [
+            {
+              "name": "amount"
+            },
+            {
+              "name": "rate"
+            },
+            {
+              "name": "jurisdictions"
+            }
+          ],
+          "returns": [
+            "shares"
+          ],
+          "calls": [],
+          "externalCalls": [
+            "calculate_tax",
+            "len"
+          ],
+          "parentClass": null
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "source": "function:main:main.main",
+      "target": "function:pkg.customer:pkg.customer.load_customer",
+      "line": 8
+    },
+    {
+      "source": "function:main:main.main",
+      "target": "function:pkg.customer:pkg.customer.update_contact",
+      "line": 9
+    },
+    {
+      "source": "function:main:main.main",
+      "target": "function:pkg.catalog:pkg.catalog.find_product",
+      "line": 10
+    },
+    {
+      "source": "function:main:main.main",
+      "target": "function:pkg.billing:pkg.billing.create_invoice",
+      "line": 11
+    },
+    {
+      "source": "function:main:main.main",
+      "target": "function:pkg.reporting:pkg.reporting.render_receipt",
+      "line": 12
+    },
+    {
+      "source": "function:main:main.main",
+      "target": "function:pkg.reporting:pkg.reporting.send_receipt",
+      "line": 13
+    },
+    {
+      "source": "function:pkg.billing:pkg.billing.create_invoice",
+      "target": "function:pkg.promotions:pkg.promotions.discount_for_customer",
+      "line": 12
+    },
+    {
+      "source": "function:pkg.billing:pkg.billing.create_invoice",
+      "target": "function:pkg.tax:pkg.tax.calculate_tax",
+      "line": 14
+    },
+    {
+      "source": "function:pkg.catalog:pkg.catalog.find_product",
+      "target": "function:pkg.inventory:pkg.inventory.available_quantity",
+      "line": 22
+    },
+    {
+      "source": "function:pkg.reporting:pkg.reporting.render_receipt",
+      "target": "function:pkg.customer:pkg.customer.customer_label",
+      "line": 5
+    }
+  ],
+  "filesScanned": 9,
+  "warnings": []
+}

@@ -3,7 +3,7 @@ import * as path from "path";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { Analysis } from "./types";
-import { showAnalysis } from "./panel";
+import { showAnalysis, updateAnalysis } from "./panel";
 
 const execFileAsync = promisify(execFile);
 const FORTRAN_EXTENSIONS = new Set([
@@ -12,11 +12,13 @@ const FORTRAN_EXTENSIONS = new Set([
 
 export function activate(context: vscode.ExtensionContext): void {
   let lastActiveSourceFile: string | undefined;
+  let analysisPanel: vscode.WebviewPanel | undefined;
 
   const rememberEditor = (editor: vscode.TextEditor | undefined) => {
     const file = editor?.document.uri.fsPath;
     const extension = file && path.extname(file).toLowerCase();
-    if (file && (extension === ".py" || FORTRAN_EXTENSIONS.has(extension))) {
+    if (file && extension &&
+        (extension === ".py" || FORTRAN_EXTENSIONS.has(extension))) {
       lastActiveSourceFile = file;
     }
   };
@@ -27,11 +29,11 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("codeflowExplorer.analyze", async () => {
+    vscode.commands.registerCommand("codeflowExplorer.analyze", async (): Promise<boolean> => {
       const workspace = vscode.workspace.workspaceFolders?.[0];
       if (!workspace) {
         void vscode.window.showWarningMessage("Open a Python or Fortran project folder first.");
-        return;
+        return false;
       }
 
       rememberEditor(vscode.window.activeTextEditor);
@@ -51,14 +53,102 @@ export function activate(context: vscode.ExtensionContext): void {
         if (stderr.trim()) console.warn(stderr);
 
         const analysis = JSON.parse(stdout) as Analysis;
-        showAnalysis(context, workspace.uri.fsPath, analysis, lastActiveSourceFile,
-          () => lastActiveSourceFile);
+        const analysisDirectory = vscode.Uri.joinPath(workspace.uri, ".codeflow-explorer");
+        const analysisFile = vscode.Uri.joinPath(analysisDirectory, "analysis.json");
+        try {
+          const previousAnalysis = await vscode.workspace.fs.readFile(analysisFile);
+          const previous = JSON.parse(Buffer.from(previousAnalysis).toString("utf8")) as Analysis;
+          restoreNotes(analysis, previous);
+        } catch (error) {
+          if (!(error instanceof vscode.FileSystemError) || error.code !== "FileNotFound") {
+            throw error;
+          }
+        }
+
+        try {
+          await vscode.workspace.fs.createDirectory(analysisDirectory);
+          await vscode.workspace.fs.writeFile(
+            analysisFile,
+            Buffer.from(`${JSON.stringify(analysis, null, 2)}\n`, "utf8")
+          );
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          void vscode.window.showErrorMessage(
+            `CodeFlow analysis could not be saved to ${analysisFile.fsPath}: ${message}`
+          );
+        }
+
+        const getActiveFile = () => lastActiveSourceFile;
+        const updated = analysisPanel
+          ? await updateAnalysis(
+            analysisPanel,
+            workspace.uri.fsPath,
+            analysis,
+            lastActiveSourceFile,
+            getActiveFile
+          )
+          : false;
+        if (!updated) {
+          analysisPanel = showAnalysis(
+            context,
+            workspace.uri.fsPath,
+            analysis,
+            lastActiveSourceFile,
+            getActiveFile
+          );
+          const createdPanel = analysisPanel;
+          context.subscriptions.push(createdPanel.onDidDispose(() => {
+            if (analysisPanel === createdPanel) analysisPanel = undefined;
+          }));
+        }
+        return true;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         void vscode.window.showErrorMessage(`CodeFlow analysis failed: ${message}`);
+        return false;
       }
     })
   );
+}
+
+function restoreNotes(analysis: Analysis, previous: Analysis): void {
+  const functionNotes = new Map<string, string>();
+  const classNotes = new Map<string, string>();
+  const noteKey = (file: string, qualifiedName: string) =>
+    JSON.stringify([file, qualifiedName]);
+
+  for (const file of previous.files) {
+    for (const fn of file.functions) {
+      if (typeof fn.note === "string") {
+        functionNotes.set(noteKey(file.path, fn.qualifiedName), fn.note);
+      }
+    }
+    for (const cls of file.classes) {
+      if (typeof cls.note === "string") {
+        classNotes.set(noteKey(file.path, cls.qualifiedName), cls.note);
+      }
+      for (const fn of cls.methods) {
+        if (typeof fn.note === "string") {
+          functionNotes.set(noteKey(file.path, fn.qualifiedName), fn.note);
+        }
+      }
+    }
+  }
+
+  for (const file of analysis.files) {
+    for (const fn of file.functions) {
+      const note = functionNotes.get(noteKey(file.path, fn.qualifiedName));
+      if (note !== undefined) fn.note = note;
+    }
+    for (const cls of file.classes) {
+      const classNote = classNotes.get(noteKey(file.path, cls.qualifiedName));
+      if (classNote !== undefined) cls.note = classNote;
+      for (const fn of cls.methods) {
+        const note = functionNotes.get(noteKey(file.path, fn.qualifiedName));
+        if (note !== undefined) fn.note = note;
+      }
+    }
+  }
 }
 
 export function deactivate(): void {}

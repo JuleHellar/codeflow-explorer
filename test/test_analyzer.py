@@ -8,6 +8,50 @@ from analyzer import analyse  # type: ignore[reportMissingImports]
 
 
 class AnalyzerTests(unittest.TestCase):
+    def test_ids_are_stable_when_source_lines_shift(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            python_file = root / "sample.py"
+            fortran_file = root / "sample.f90"
+            python_file.write_text(
+                "class Example:\n"
+                "    def method(self):\n"
+                "        pass\n"
+                "\n"
+                "def helper():\n"
+                "    pass\n",
+                encoding="utf-8",
+            )
+            fortran_file.write_text(
+                "module sample_module\n"
+                "  type :: sample_type\n"
+                "    integer :: value\n"
+                "  end type sample_type\n"
+                "contains\n"
+                "  subroutine work()\n"
+                "  end subroutine work\n"
+                "end module sample_module\n",
+                encoding="utf-8",
+            )
+
+            before = analyse(root)
+            python_file.write_text("# shifted\n" + python_file.read_text(encoding="utf-8"),
+                                   encoding="utf-8")
+            fortran_file.write_text("! shifted\n" + fortran_file.read_text(encoding="utf-8"),
+                                    encoding="utf-8")
+            after = analyse(root)
+
+        def ids_by_entity(result):
+            ids = {}
+            for file in result["files"]:
+                for cls in file["classes"]:
+                    ids[("class", file["path"], cls["qualifiedName"])] = cls["id"]
+                for fn in file["functions"]:
+                    ids[("function", file["path"], fn["qualifiedName"])] = fn["id"]
+            return ids
+
+        self.assertEqual(ids_by_entity(before), ids_by_entity(after))
+
     def test_python_analysis_still_resolves_imported_calls(self):
         fixture = Path(__file__).parent / "fixture_project"
         result = analyse(fixture)

@@ -8,6 +8,10 @@
   var canvas = document.getElementById("canvas");
   var svg = document.getElementById("links");
   var diagram = document.getElementById("diagram");
+  var saveButton = document.getElementById("saveAnalysis");
+  var reanalyzeButton = document.getElementById("reanalyze");
+  var viewBackButton = document.getElementById("viewBack");
+  var viewForwardButton = document.getElementById("viewForward");
   var minZoom = 0.25;
   var maxZoom = 2;
   var entryPortOffset = 7;
@@ -17,6 +21,12 @@
   var boxPositions = /* @__PURE__ */ new Map();
   var currentFile;
   var arrowsPending = false;
+  var notesDirty = false;
+  var notesRevision = 0;
+  var reanalysisPending = false;
+  var maxViewHistory = 5;
+  var viewHistory = [];
+  var viewHistoryIndex = -1;
   function el(tag, className, text) {
     const node = document.createElement(tag);
     if (className) node.className = className;
@@ -38,14 +48,14 @@
       drawCallArrows(currentFile);
     });
   }
-  function populatePicker() {
+  function populatePicker(requested = window.INITIAL_FILE) {
+    picker.replaceChildren();
     for (const file of data.files) {
       const option = document.createElement("option");
       option.value = file.path;
       option.textContent = file.path;
       picker.appendChild(option);
     }
-    const requested = window.INITIAL_FILE;
     picker.value = data.files.some((f) => f.path === requested) ? requested : data.files[0]?.path || "";
   }
   function variablePanel(title, variables) {
@@ -69,6 +79,19 @@
     title.title = `${fn.qualifiedName} \u2014 line ${fn.line}; Ctrl+click to open in VS Code`;
     return title;
   }
+  function noteEditor(value, label, onInput) {
+    const editor = el("textarea", "box-note");
+    editor.value = value || "";
+    editor.placeholder = "Add a note\u2026";
+    editor.setAttribute("aria-label", label);
+    editor.addEventListener("input", () => {
+      onInput(editor.value);
+      notesDirty = true;
+      notesRevision++;
+      saveButton.textContent = "Save notes *";
+    });
+    return editor;
+  }
   function functionCard(fn) {
     const card = el("article", "function-card");
     card.dataset.nodeId = fn.id;
@@ -81,6 +104,9 @@
     const title = functionLink(fn, "function-title");
     const inputs = variablePanel("Inputs", fn.params);
     header.append(title);
+    const note = noteEditor(fn.note, `Notes for ${fn.qualifiedName}`, (value) => {
+      fn.note = value;
+    });
     const returns = el("section", "return-section");
     returns.appendChild(el("strong", "variable-heading", "Return values"));
     const returnList = el("div", "return-list");
@@ -90,7 +116,7 @@
       returnList.appendChild(el("span", "muted", "No explicit return detected"));
     }
     returns.appendChild(returnList);
-    card.append(header, inputs, returns);
+    card.append(header, inputs, note, returns);
     return card;
   }
   function externalFunctionCard(fn, direction) {
@@ -98,16 +124,24 @@
     const positionId = `external-${direction}:${fn.id}`;
     positionBox(card, positionId);
     card.dataset[direction === "caller" ? "externalCallerId" : "externalCalleeId"] = fn.id;
+    const currentFunctionIds = new Set(currentFile.functions.map((currentFn) => currentFn.id));
     const edgeCount = data.edges.filter(
-      (edge) => direction === "caller" ? edge.source === fn.id : edge.target === fn.id
+      (edge) => direction === "caller" ? edge.source === fn.id && currentFunctionIds.has(edge.target) : edge.target === fn.id && currentFunctionIds.has(edge.source)
     ).length;
-    card.style.minHeight = `${Math.max(52, 80 + edgeCount * 14 + 10)}px`;
-    card.setAttribute("role", "button");
-    card.tabIndex = 0;
+    const portOffset = direction === "caller" ? callPortOffset : entryPortOffset;
+    card.style.minHeight = `${Math.max(124, 26 + 34 + portOffset + Math.max(0, edgeCount - 1) * portSpacing + 10)}px`;
     card.title = `Show ${fn.file} in the diagram; Ctrl+click to open in VS Code`;
     const file = el("div", "external-function-file", fn.file);
     file.title = fn.file;
-    card.append(file, el("div", "external-function-title", fn.name));
+    const title = el("button", "external-function-title", fn.name);
+    title.type = "button";
+    title.setAttribute("aria-label", `Show ${fn.file} in the diagram`);
+    const note = noteEditor(fn.note, `Notes for ${fn.qualifiedName}`, (value) => {
+      fn.note = value;
+    });
+    note.addEventListener("click", (event) => event.stopPropagation());
+    note.addEventListener("keydown", (event) => event.stopPropagation());
+    card.append(file, title, note);
     const activate = (openInEditor) => {
       if (openInEditor) {
         vscode.postMessage({ command: "open", file: fn.file, line: fn.line });
@@ -115,16 +149,11 @@
         picker.value = fn.file;
         canvas.scrollLeft = 0;
         canvas.scrollTop = 0;
+        recordView(fn.file);
         render();
       }
     };
     card.addEventListener("click", (event) => activate(event.ctrlKey));
-    card.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        activate(event.ctrlKey);
-      }
-    });
     return card;
   }
   function renderFile(filePath) {
@@ -149,6 +178,9 @@
         classBox.dataset.classId = cls.id;
         positionBox(classBox, `class:${cls.id}`);
         classBox.appendChild(el("div", "class-title", cls.name));
+        classBox.appendChild(noteEditor(cls.note, `Notes for ${cls.qualifiedName}`, (value) => {
+          cls.note = value;
+        }));
         const methods = el("div", "class-methods");
         cls.methods.slice().sort((a, b) => a.order - b.order).forEach((fn) => methods.appendChild(functionCard(fn)));
         classBox.appendChild(methods);
@@ -453,6 +485,39 @@
   function render() {
     renderFile(picker.value);
   }
+  function updateViewHistoryButtons() {
+    viewBackButton.disabled = viewHistoryIndex <= 0;
+    viewForwardButton.disabled = viewHistoryIndex < 0 || viewHistoryIndex >= viewHistory.length - 1;
+  }
+  function recordView(filePath) {
+    if (!filePath || viewHistory[viewHistoryIndex] === filePath) return;
+    viewHistory = viewHistory.slice(0, viewHistoryIndex + 1);
+    viewHistory.push(filePath);
+    if (viewHistory.length > maxViewHistory) viewHistory.shift();
+    viewHistoryIndex = viewHistory.length - 1;
+    updateViewHistoryButtons();
+  }
+  function reconcileViewHistory(currentFilePath) {
+    const previousIndex = viewHistoryIndex;
+    const availablePaths = new Set(data.files.map((file) => file.path));
+    const entries = viewHistory.map((filePath, index) => ({ filePath, index })).filter((entry) => availablePaths.has(entry.filePath));
+    viewHistory = entries.map((entry) => entry.filePath);
+    viewHistoryIndex = entries.filter((entry) => entry.index <= previousIndex).length - 1;
+    if (viewHistory[viewHistoryIndex] !== currentFilePath) {
+      viewHistory = viewHistory.slice(0, viewHistoryIndex + 1);
+      recordView(currentFilePath);
+    } else {
+      updateViewHistoryButtons();
+    }
+  }
+  function showHistoryView(index) {
+    const filePath = viewHistory[index];
+    if (!data.files.some((file) => file.path === filePath)) return;
+    viewHistoryIndex = index;
+    picker.value = filePath;
+    render();
+    updateViewHistoryButtons();
+  }
   function setZoom(nextZoom, anchorX = canvas.clientWidth / 2, anchorY = canvas.clientHeight / 2) {
     const next = Math.min(maxZoom, Math.max(minZoom, nextZoom));
     if (next === zoom) return;
@@ -489,6 +554,7 @@
   var suppressClick = false;
   canvas.addEventListener("pointerdown", (event) => {
     if (event.button !== 0 || event.pointerType !== "mouse") return;
+    if (event.target instanceof Element && event.target.closest("button, input, select, textarea")) return;
     const movable = event.target instanceof Element ? event.target.closest("[data-movable-id]") : null;
     if (event.altKey && movable) {
       const positionId = movable.dataset.movableId;
@@ -589,7 +655,18 @@
       }
     });
   });
-  picker.addEventListener("change", render);
+  picker.addEventListener("change", () => {
+    recordView(picker.value);
+    render();
+  });
+  viewBackButton.addEventListener("click", () => {
+    if (viewHistoryIndex > 0) showHistoryView(viewHistoryIndex - 1);
+  });
+  viewForwardButton.addEventListener("click", () => {
+    if (viewHistoryIndex < viewHistory.length - 1) {
+      showHistoryView(viewHistoryIndex + 1);
+    }
+  });
   document.getElementById("zoomIn").addEventListener("click", () => setZoom(zoom * 1.2));
   document.getElementById("zoomOut").addEventListener("click", () => setZoom(zoom / 1.2));
   document.getElementById("fitDiagram").addEventListener("click", fitDiagram);
@@ -603,19 +680,79 @@
       setZoom(zoom / 1.2);
     }
   });
+  window.addEventListener("keydown", (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
+      event.preventDefault();
+      if (!saveButton.disabled) saveButton.click();
+    }
+  }, true);
   document.getElementById("resetFile").addEventListener("click", () => {
     vscode.postMessage({ command: "reset-active-file" });
   });
+  reanalyzeButton.addEventListener("click", () => {
+    reanalysisPending = true;
+    reanalyzeButton.disabled = true;
+    if (!saveButton.disabled) saveButton.click();
+  });
+  saveButton.addEventListener("click", () => {
+    const functions = {};
+    const classes = {};
+    for (const file of data.files) {
+      for (const fn of file.functions) {
+        if (typeof fn.note === "string") functions[fn.id] = fn.note;
+      }
+      for (const cls of file.classes) {
+        if (typeof cls.note === "string") classes[cls.id] = cls.note;
+        for (const fn of cls.methods) {
+          if (typeof fn.note === "string") functions[fn.id] = fn.note;
+        }
+      }
+    }
+    const revision = notesRevision;
+    saveButton.disabled = true;
+    vscode.postMessage({ command: "save-notes", functions, classes, revision });
+  });
   window.addEventListener("message", (event) => {
-    if (event.data?.command === "select-file") {
+    if (event.data?.command === "update-analysis") {
+      const selectedFile = picker.value;
+      data = event.data.analysis;
+      const keepSelectedFile = data.files.some((file) => file.path === selectedFile);
+      populatePicker(keepSelectedFile ? selectedFile : event.data.initialFile);
+      reconcileViewHistory(picker.value);
+      render();
+    } else if (event.data?.command === "select-file") {
       const exists = Array.from(picker.options).some((o) => o.value === event.data.path);
       if (exists) {
         picker.value = event.data.path;
+        recordView(event.data.path);
         render();
       } else {
         const message = `The active file is not part of this workspace analysis: ${event.data.path}`;
         document.getElementById("summary").textContent = message;
       }
+    } else if (event.data?.command === "save-result") {
+      saveButton.disabled = false;
+      if (event.data.success && event.data.revision === notesRevision) {
+        notesDirty = false;
+        saveButton.textContent = "Saved";
+        if (reanalysisPending) {
+          vscode.postMessage({ command: "reanalyze" });
+        }
+        window.setTimeout(() => {
+          if (!notesDirty) saveButton.textContent = "Save notes";
+        }, 1800);
+      } else {
+        saveButton.textContent = "Save notes *";
+        if (reanalysisPending && !event.data.success) {
+          reanalysisPending = false;
+          reanalyzeButton.disabled = false;
+        } else if (reanalysisPending) {
+          saveButton.click();
+        }
+      }
+    } else if (event.data?.command === "reanalyze-result") {
+      reanalysisPending = false;
+      reanalyzeButton.disabled = false;
     }
   });
   svg.innerHTML = `<defs>
@@ -627,5 +764,6 @@
   </marker>
 </defs>`;
   populatePicker();
+  recordView(picker.value);
   render();
 })();

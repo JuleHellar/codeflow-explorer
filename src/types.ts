@@ -13,6 +13,7 @@ export interface FunctionInfo {
   order: number;
   params: VariableInfo[];
   returns: string[];
+  note?: string;
   calls: string[];
   externalCalls: string[];
   parentClass?: string;
@@ -25,6 +26,7 @@ export interface ClassInfo {
   file: string;
   line: number;
   order: number;
+  note?: string;
   methods: FunctionInfo[];
 }
 

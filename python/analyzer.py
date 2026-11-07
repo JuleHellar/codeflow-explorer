@@ -87,7 +87,7 @@ class ModuleBuilder(ast.NodeVisitor):
     def visit_ClassDef(self, node):
         qualified = ".".join([self.module] + [c["name"] for c in self.class_stack] + [node.name])
         cls = {
-            "id": f"class:{self.module}:{node.lineno}:{qualified}",
+            "id": f"class:{self.module}:{qualified}",
             "name": node.name,
             "qualifiedName": qualified,
             "file": self.path,
@@ -107,7 +107,7 @@ class ModuleBuilder(ast.NodeVisitor):
         parents = [c["name"] for c in self.class_stack]
         qualified = ".".join([self.module] + parents + [node.name])
         fn = {
-            "id": f"function:{self.module}:{node.lineno}:{qualified}",
+            "id": f"function:{self.module}:{qualified}",
             "name": node.name,
             "qualifiedName": qualified,
             "file": self.path,
@@ -303,7 +303,7 @@ def analyse_fortran_file(relative: str, source: str):
             current_module = module_match.group(1)
             qualified = current_module
             current_module_class = {
-                "id": f"class:{module}:{line}:{qualified}",
+                "id": f"class:{module}:{qualified}",
                 "name": current_module,
                 "qualifiedName": qualified,
                 "file": relative,
@@ -352,7 +352,7 @@ def analyse_fortran_file(relative: str, source: str):
             type_name = type_match.group(1)
             type_qualified = ".".join(part for part in (current_module, type_name) if part)
             current_type = {
-                "id": f"class:{module}:{line}:{type_qualified}",
+                "id": f"class:{module}:{type_qualified}",
                 "name": type_name,
                 "qualifiedName": type_qualified,
                 "file": relative,
@@ -391,7 +391,7 @@ def analyse_fortran_file(relative: str, source: str):
             scope = current_module or module
             qualified = f"{scope}.{name}"
             fn = {
-                "id": f"function:{module}:{line}:{qualified}",
+                "id": f"function:{module}:{qualified}",
                 "name": name,
                 "qualifiedName": qualified,
                 "file": relative,
