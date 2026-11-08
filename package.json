@@ -4,6 +4,10 @@
   "description": "Explore Python and Fortran files, procedures, arguments, return values and calls.",
   "version": "0.2.0",
   "publisher": "your-name",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JuleHellar/codeflow-explorer.git"
+  },
   "engines": { "vscode": "^1.85.0" },
   "main": "./out/extension.js",
   "activationEvents": ["onCommand:codeflowExplorer.analyze"],
