@@ -3,5 +3,13 @@ src/**
 python/**
 test/**
 media/main.js
-media/main.css
 *.map
+!python/analyzer.py
+node_modules/**
+package-lock.json
+tsconfig.json
+.gitignore
+.gitattributes
+.vscodeignore
+terminal_cmd.txt
+SMOKE_TEST.txt

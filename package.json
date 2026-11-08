@@ -8,12 +8,19 @@
     "type": "git",
     "url": "https://github.com/JuleHellar/codeflow-explorer.git"
   },
-  "engines": { "vscode": "^1.85.0" },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
   "main": "./out/extension.js",
-  "activationEvents": ["onCommand:codeflowExplorer.analyze"],
+  "activationEvents": [
+    "onCommand:codeflowExplorer.analyze"
+  ],
   "contributes": {
     "commands": [
-      { "command": "codeflowExplorer.analyze", "title": "CodeFlow: Analyse Python and Fortran Workspace" }
+      {
+        "command": "codeflowExplorer.analyze",
+        "title": "CodeFlow: Analyse Python and Fortran Workspace"
+      }
     ],
     "configuration": {
       "title": "CodeFlow Explorer",
@@ -32,7 +39,6 @@
     "watch": "tsc -watch -p .",
     "package": "vsce package"
   },
-  "dependencies": { "mermaid": "^11.4.1" },
   "devDependencies": {
     "@types/node": "^20.11.0",
     "@types/vscode": "^1.85.0",
