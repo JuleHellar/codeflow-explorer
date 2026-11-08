@@ -28,7 +28,7 @@ code quality for which I apologise.
 `python/analyzer.py` uses only Python's standard library. No pip install and no Python virtual environment are required. If your Python command is `python3`, set `codeflowExplorer.pythonPath` to `python3` in VS Code settings.
 Fortran files with `.f`, `.for`, `.ftn`, `.f77`, `.f90`, `.f95`, `.f03`, `.f08`, and `.f18` extensions are included. Modules appear as class-like containers, and subroutines, functions, and program units use the existing function cards. Both common fixed-form extensions and free-form source are recognized.
 
-Each analysis is also saved as formatted JSON to `.codeflow-explorer/analysis.json` in the workspace. The JSON contains the files, functions, and resolved call edges used by the diagram; the generated directory is ignored by Git.
+Each analysis is also saved as formatted JSON to `.codeflow-explorer/analysis.json` in the workspace. The JSON contains the files, functions, classes, resolved call edges, and external imports shown in the diagram; the generated directory is ignored by Git.
 Notes can be edited in the function and class boxes for the selected file and saved to the same JSON file with the **Save notes** button or Ctrl+S (Cmd+S on macOS). Notes are retained when the workspace is analyzed again; class and function IDs are based on their file/module and qualified name, not source line numbers.
 
 ## Fortran test fixture
@@ -48,15 +48,19 @@ python -m unittest discover -s test -p 'test_*.py'
 - Hold Alt and drag a box to move it; moving a file or class box also moves its contents. Call arrows follow the moved boxes.
 - “Reset view to active file” switches to the last active Python or Fortran editor known to the extension.
 - File contents are ordered by source line: classes and top-level functions, then methods in their class.
+- Python functions nested within functions are shown inside their parent card and analyzed in their enclosing lexical scope.
+- Flow decorators supported by the analyzer are `@start`/`@start()` and `@listen(...)`. A `.kickoff()` call on a variable assigned a class instance is connected to that class's start method, and `@listen(method)` connects the named trigger method to its listener.
 - Each function card shows its inputs and detected return values in vertically scrollable panels.
-- Blue arrows represent resolved calls between functions in the selected file.
+- Calls to classes in the scanned workspace link to their class boxes. Known instance-method calls link to their matching class methods.
+- Calls to imported external classes, functions, and methods on instances created from those classes are listed as external imports in the calling function card. Built-ins and unresolved calls without an imported external origin are omitted.
+- Blue arrows represent resolved calls between functions and classes in the selected file.
 - Resolved calls into the selected file from other files appear as arrows from caller boxes on the left, separated from the file by a dashed boundary. Click a caller box to view its file in the diagram; Ctrl+click opens it in VS Code.
 - Resolved calls from the selected file to functions in other files appear as arrows to callee boxes on the right, beyond a dashed boundary. Callee boxes are ordered by caller and call-site order. Click a callee box to view its file in the diagram; Ctrl+click opens it in VS Code.
-- Calls with unresolved targets cannot be drawn; the analyzer only creates arrows for calls it can resolve.
+- Calls to functions and classes in the scanned workspace are connected to their boxes. External imports are listed but cannot be connected to workspace boxes.
 
 ## Important analysis limitations
 
-This is static analysis. Python calls are resolved for straightforward same-file functions, simple imported names, and `self.method()` within a class. Fortran calls are resolved for same-file procedures, module procedures, and procedures brought in with `use` statements (including `only` aliases). Dynamic dispatch, arbitrary object method resolution, inheritance, reflection, monkey-patching, complex relative imports, ambiguous overloads, and runtime-generated code are not resolved reliably. Fortran source is parsed without a compiler; function return panels show the declared result variable or function name.
+This is static analysis. Python calls are resolved for same-file functions and classes, imported names when the import uniquely matches a scanned function or class (including `src`-layout packages), lexically scoped nested functions, and methods on instances whose class is scanned. Calls rooted in external imports are listed without diagram edges; unimported unresolved calls and built-ins are omitted. External dependencies cannot be traced through their implementations. Dynamic dispatch, arbitrary object method resolution, inheritance, reflection, monkey-patching, ambiguous overloads, and runtime-generated code are not resolved reliably. Fortran calls are resolved for same-file procedures, module procedures, and procedures brought in with `use` statements (including `only` aliases). Fortran source is parsed without a compiler; function return panels show the declared result variable or function name.
 
 ## Build a VSIX
 

@@ -16,6 +16,9 @@ export interface FunctionInfo {
   note?: string;
   calls: string[];
   externalCalls: string[];
+  nestedFunctions?: FunctionInfo[];
+  flowRole?: "start" | "listener";
+  flowListeners?: string[];
   parentClass?: string;
 }
 

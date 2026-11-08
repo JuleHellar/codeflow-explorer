@@ -8,6 +8,198 @@ from analyzer import analyse  # type: ignore[reportMissingImports]
 
 
 class AnalyzerTests(unittest.TestCase):
+    def test_flow_kickoff_start_and_listen_relationships(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "flow.py").write_text(
+                "from workflow import Flow, listen, start\n"
+                "\n"
+                "class PurchaseFlow(Flow):\n"
+                "    @start()\n"
+                "    def validate_cart(self):\n"
+                "        pass\n"
+                "\n"
+                "    @listen(validate_cart)\n"
+                "    def confirm_purchase(self):\n"
+                "        pass\n"
+                "\n"
+                "def purchase_items():\n"
+                "    flow = PurchaseFlow()\n"
+                "    flow.kickoff()\n",
+                encoding="utf-8",
+            )
+
+            result = analyse(root)
+
+        file = result["files"][0]
+        functions = {fn["name"]: fn for fn in file["functions"]}
+        validate = functions["validate_cart"]
+        confirm = functions["confirm_purchase"]
+        purchase = functions["purchase_items"]
+        purchase_flow = file["classes"][0]
+        edges = {
+            (edge["source"], edge["target"])
+            for edge in result["edges"]
+        }
+
+        self.assertEqual(validate["flowRole"], "start")
+        self.assertEqual(confirm["flowRole"], "listener")
+        self.assertEqual(confirm["flowListeners"], ["validate_cart"])
+        self.assertIn((purchase["id"], purchase_flow["id"]), edges)
+        self.assertIn((purchase["id"], validate["id"]), edges)
+        self.assertIn((validate["id"], confirm["id"]), edges)
+
+    def test_imported_class_constructors_and_instance_methods_are_analyzed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "main.py").write_text(
+                "from models import Cart, Product\n"
+                "\n"
+                "def checkout():\n"
+                "    product = Product()\n"
+                "    product.validate()\n"
+                "    cart = Cart()\n"
+                "    cart.add(product)\n",
+                encoding="utf-8",
+            )
+            (root / "models.py").write_text(
+                "class Product:\n"
+                "    def validate(self):\n"
+                "        pass\n"
+                "\n"
+                "class Cart:\n"
+                "    def add(self, product):\n"
+                "        pass\n",
+                encoding="utf-8",
+            )
+
+            result = analyse(root)
+
+        functions = {
+            fn["qualifiedName"]: fn
+            for file in result["files"]
+            for fn in file["functions"]
+        }
+        classes = {
+            cls["qualifiedName"]: cls
+            for file in result["files"]
+            for cls in file["classes"]
+        }
+        checkout = functions["main.checkout"]
+        edges = {
+            (edge["source"], edge["target"])
+            for edge in result["edges"]
+        }
+
+        self.assertIn((checkout["id"], classes["models.Product"]["id"]), edges)
+        self.assertIn((checkout["id"], classes["models.Cart"]["id"]), edges)
+        self.assertIn((checkout["id"], functions["models.Product.validate"]["id"]), edges)
+        self.assertIn((checkout["id"], functions["models.Cart.add"]["id"]), edges)
+
+    def test_external_service_constructors_and_methods_are_reported(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "workflow.py").write_text(
+                "from integrations import CatalogClient, PaymentGateway, ShippingService, format_receipt\n"
+                "\n"
+                "def complete_purchase():\n"
+                "    catalog = CatalogClient()\n"
+                "    payment = PaymentGateway()\n"
+                "    shipping = ShippingService()\n"
+                "    catalog.reserve_item()\n"
+                "    payment.charge()\n"
+                "    shipping.schedule_delivery()\n"
+                "    format_receipt(payment)\n"
+                "    print(str(payment))\n"
+                "    payload.get('status')\n"
+                "    unimported_helper()\n",
+                encoding="utf-8",
+            )
+
+            result = analyse(root)
+
+        run = result["files"][0]["functions"][0]
+        self.assertEqual(
+            set(run["externalCalls"]),
+            {
+                "CatalogClient",
+                "PaymentGateway",
+                "ShippingService",
+                "format_receipt",
+                "catalog.reserve_item",
+                "payment.charge",
+                "shipping.schedule_delivery",
+            },
+        )
+
+    def test_src_layout_imported_call_and_nested_functions_are_analyzed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            package = root / "src" / "online_store"
+            services = package / "services"
+            services.mkdir(parents=True)
+            (package / "main.py").write_text(
+                "from services.orders import create_order\n"
+                "\n"
+                "def place_order():\n"
+                "    create_order()\n",
+                encoding="utf-8",
+            )
+            (services / "orders.py").write_text(
+                "def create_order():\n"
+                "    return None\n",
+                encoding="utf-8",
+            )
+            (services / "catalog.py").write_text(
+                "def build_product_catalog():\n"
+                "    def normalize_sku(sku):\n"
+                "        return sku\n"
+                "\n"
+                "    def find_product():\n"
+                "        return normalize_sku('sku-123')\n"
+                "\n"
+                "    if True:\n"
+                "        def list_available_products():\n"
+                "            return find_product()\n"
+                "\n"
+                "    return list_available_products\n",
+                encoding="utf-8",
+            )
+
+            result = analyse(root)
+
+        functions = {
+            fn["qualifiedName"]: fn
+            for file in result["files"]
+            for fn in file["functions"]
+        }
+        edges = {
+            (edge["source"], edge["target"])
+            for edge in result["edges"]
+        }
+        place_order = functions["src.online_store.main.place_order"]
+        create_order = functions["src.online_store.services.orders.create_order"]
+        build_product_catalog = functions[
+            "src.online_store.services.catalog.build_product_catalog"
+        ]
+        normalize_sku = functions[
+            "src.online_store.services.catalog.build_product_catalog.normalize_sku"
+        ]
+        find_product = functions[
+            "src.online_store.services.catalog.build_product_catalog.find_product"
+        ]
+        list_available_products = functions[
+            "src.online_store.services.catalog.build_product_catalog.list_available_products"
+        ]
+
+        self.assertIn((place_order["id"], create_order["id"]), edges)
+        self.assertIn((find_product["id"], normalize_sku["id"]), edges)
+        self.assertIn((list_available_products["id"], find_product["id"]), edges)
+        self.assertEqual(
+            [fn["name"] for fn in build_product_catalog["nestedFunctions"]],
+            ["normalize_sku", "find_product", "list_available_products"],
+        )
+
     def test_ids_are_stable_when_source_lines_shift(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

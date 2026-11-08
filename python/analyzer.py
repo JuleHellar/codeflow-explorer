@@ -41,6 +41,7 @@ class FunctionBodyVisitor(ast.NodeVisitor):
     def __init__(self):
         self.calls = []
         self.returns = []
+        self.instances = {}
 
     def visit_FunctionDef(self, node):
         return
@@ -55,12 +56,86 @@ class FunctionBodyVisitor(ast.NodeVisitor):
         self.calls.append((dotted(node.func), node.lineno))
         self.generic_visit(node)
 
+    def visit_Assign(self, node):
+        class_name = dotted(node.value.func) if isinstance(node.value, ast.Call) else ""
+        for target in node.targets:
+            name = dotted(target)
+            if name:
+                if class_name:
+                    self.instances[name] = class_name
+                else:
+                    self.instances.pop(name, None)
+        self.generic_visit(node)
+
+    def visit_AnnAssign(self, node):
+        class_name = dotted(node.value.func) if isinstance(node.value, ast.Call) else ""
+        name = dotted(node.target)
+        if name:
+            if class_name:
+                self.instances[name] = class_name
+            else:
+                self.instances.pop(name, None)
+        self.generic_visit(node)
+
     def visit_Return(self, node):
         if node.value is not None:
             value = source_text(node.value)
             if value not in self.returns:
                 self.returns.append(value)
         self.generic_visit(node)
+
+
+def flow_decorator_info(node: ast.FunctionDef | ast.AsyncFunctionDef):
+    role = None
+    listeners = []
+
+    def references(expression):
+        if isinstance(expression, ast.Name):
+            return [expression.id]
+        if isinstance(expression, ast.Attribute):
+            value = dotted(expression)
+            return [value] if value else []
+        if isinstance(expression, ast.Constant) and isinstance(expression.value, str):
+            return [expression.value]
+        if isinstance(expression, ast.Call):
+            return [
+                reference
+                for argument in expression.args
+                for reference in references(argument)
+            ] + [
+                reference
+                for keyword in expression.keywords
+                for reference in references(keyword.value)
+            ]
+        return []
+
+    for decorator in node.decorator_list:
+        called = decorator.func if isinstance(decorator, ast.Call) else decorator
+        name = dotted(called).rsplit(".", 1)[-1]
+        if name == "start":
+            role = "start"
+        elif name == "listen":
+            role = "listener"
+            arguments = decorator.args if isinstance(decorator, ast.Call) else []
+            for argument in arguments:
+                for reference in references(argument):
+                    if reference not in listeners:
+                        listeners.append(reference)
+    return role, listeners
+
+
+class NestedFunctionVisitor(ast.NodeVisitor):
+    def __init__(self, builder):
+        self.builder = builder
+
+    def visit_FunctionDef(self, node):
+        self.builder._function(node)
+
+    def visit_AsyncFunctionDef(self, node):
+        self.builder._function(node)
+
+    def visit_ClassDef(self, node):
+        return
 
 
 class ModuleBuilder(ast.NodeVisitor):
@@ -105,7 +180,9 @@ class ModuleBuilder(ast.NodeVisitor):
 
     def _function(self, node):
         parents = [c["name"] for c in self.class_stack]
+        parents.extend(fn["name"] for fn in self.function_stack)
         qualified = ".".join([self.module] + parents + [node.name])
+        flow_role, flow_listeners = flow_decorator_info(node)
         fn = {
             "id": f"function:{self.module}:{qualified}",
             "name": node.name,
@@ -118,8 +195,17 @@ class ModuleBuilder(ast.NodeVisitor):
             "returns": [],
             "calls": [],
             "externalCalls": [],
+            "nestedFunctions": [],
+            "flowListeners": flow_listeners,
             "parentClass": self.class_stack[-1]["id"] if self.class_stack else None
         }
+        if flow_role:
+            fn["flowRole"] = flow_role
+        if flow_role == "listener":
+            fn["_flowListenerLine"] = min(
+                (decorator.lineno for decorator in node.decorator_list),
+                default=node.lineno
+            )
 
         args = node.args
         all_args = list(args.posonlyargs) + list(args.args)
@@ -135,18 +221,20 @@ class ModuleBuilder(ast.NodeVisitor):
             visitor.visit(statement)
         fn["returns"] = visitor.returns
         fn["_rawCalls"] = visitor.calls
+        fn["_instances"] = visitor.instances
 
         self.functions.append(fn)
-        if self.class_stack:
+        if self.function_stack:
+            self.function_stack[-1]["nestedFunctions"].append(fn)
+        elif self.class_stack:
             self.class_stack[-1]["methods"].append(fn)
-        elif not self.function_stack:
+        else:
             self.items.append({"kind": "function", "id": fn["id"], "line": node.lineno, "order": node.lineno})
 
         self.function_stack.append(fn)
-        # Nested functions are discovered as functions too, but have their own body.
         for statement in node.body:
-            if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                self._function(statement)
+            NestedFunctionVisitor(self).visit(statement)
+        fn["nestedFunctions"].sort(key=lambda nested: nested["order"])
         self.function_stack.pop()
 
     def visit_FunctionDef(self, node):
@@ -515,16 +603,88 @@ def analyse(root: Path):
         })
     qualified_index = {}
     casefolded_qualified_index = {}
-    short_index = {}
+    qualified_suffix_index = {}
     casefolded_same_file_index = {}
+    same_file_qualified_index = {}
+    class_by_id = {}
+    classes_by_qualified_name = {}
+    classes_by_suffix = {}
+    classes_by_file_and_name = {}
     for fn in all_functions:
-        scope = fn["qualifiedName"].split(".")[0]
-        short_index.setdefault((scope, fn["name"]), []).append(fn)
         qualified_index[fn["qualifiedName"]] = fn
         casefolded_qualified_index[fn["qualifiedName"].lower()] = fn
+        qualified_parts = fn["qualifiedName"].split(".")
+        for index in range(1, len(qualified_parts)):
+            suffix = ".".join(qualified_parts[index:])
+            qualified_suffix_index.setdefault(suffix, []).append(fn)
+        same_file_qualified_index.setdefault(
+            (fn["file"], fn["qualifiedName"]), []
+        ).append(fn)
         casefolded_same_file_index.setdefault(
             (fn["file"], fn["name"].lower()), []
         ).append(fn)
+    for file in files:
+        for cls in file["classes"]:
+            class_by_id[cls["id"]] = cls
+            classes_by_qualified_name[cls["qualifiedName"]] = cls
+            classes_by_file_and_name.setdefault((file["path"], cls["name"]), []).append(cls)
+            parts = cls["qualifiedName"].split(".")
+            for index in range(1, len(parts)):
+                suffix = ".".join(parts[index:])
+                classes_by_suffix.setdefault(suffix, []).append(cls)
+
+    def resolve_class(class_name, imports, file_path, qualified_name):
+        first, *rest = class_name.split(".")
+        imported = imports.get(first)
+        if imported:
+            qualified = imported + (("." + ".".join(rest)) if rest else "")
+            target = classes_by_qualified_name.get(qualified)
+            if target:
+                return target
+            suffix_matches = classes_by_suffix.get(qualified, [])
+            if len(suffix_matches) == 1:
+                return suffix_matches[0]
+            return None
+
+        if "." in class_name:
+            target = classes_by_qualified_name.get(class_name)
+            if target:
+                return target
+            suffix_matches = classes_by_suffix.get(class_name, [])
+            if len(suffix_matches) == 1:
+                return suffix_matches[0]
+            return None
+
+        short_name = class_name.rsplit(".", 1)[-1]
+        scope = qualified_name.rsplit(".", 1)[0]
+        while scope == module_name(Path(file_path)) or scope.startswith(
+            module_name(Path(file_path)) + "."
+        ):
+            target = classes_by_qualified_name.get(f"{scope}.{short_name}")
+            if target:
+                return target
+            if scope == module_name(Path(file_path)):
+                break
+            scope = scope.rsplit(".", 1)[0]
+
+        local_matches = classes_by_file_and_name.get((file_path, short_name), [])
+        return local_matches[0] if len(local_matches) == 1 else None
+
+    def is_external_import_call(call_name, imports):
+        first, *rest = call_name.split(".")
+        imported = imports.get(first)
+        if not imported:
+            return False
+
+        qualified = imported + (("." + ".".join(rest)) if rest else "")
+        if (
+            qualified in qualified_index
+            or qualified_suffix_index.get(qualified)
+            or qualified in classes_by_qualified_name
+            or classes_by_suffix.get(qualified)
+        ):
+            return False
+        return True
 
     edges = []
     for file in files:
@@ -533,10 +693,12 @@ def analyse(root: Path):
         is_fortran = file.get("_fortran", False)
         used_modules = file.get("_usedModules", [])
         for fn in file["functions"]:
+            instances = fn.pop("_instances", {})
             for call_name, line in fn.pop("_rawCalls", []):
                 if not call_name:
                     continue
                 candidates = []
+                external_instance_call = False
                 normalized_name = call_name.replace("%", ".") if is_fortran else call_name
                 short_name = normalized_name.split(".")[-1]
 
@@ -571,6 +733,59 @@ def analyse(root: Path):
                             if target:
                                 candidates.append(target)
                 else:
+                    if short_name == "kickoff" and "." in call_name:
+                        receiver = call_name.rsplit(".", 1)[0]
+                        class_name = instances.get(receiver)
+                        if class_name:
+                            target_class = resolve_class(
+                                class_name, imports, file["path"], fn["qualifiedName"]
+                            )
+                            if target_class:
+                                start_methods = [
+                                    method for method in target_class["methods"]
+                                    if method.get("flowRole") == "start"
+                                ]
+                                if start_methods:
+                                    for method in start_methods:
+                                        if method["id"] not in fn["calls"]:
+                                            fn["calls"].append(method["id"])
+                                        edges.append({
+                                            "source": fn["id"],
+                                            "target": method["id"],
+                                            "line": line
+                                        })
+                                    continue
+                    if "." in call_name:
+                        receiver = call_name.rsplit(".", 1)[0]
+                        class_name = instances.get(receiver)
+                        if class_name:
+                            target_class = resolve_class(
+                                class_name, imports, file["path"], fn["qualifiedName"]
+                            )
+                            if target_class:
+                                method_matches = [
+                                    method for method in target_class["methods"]
+                                    if method["name"] == short_name
+                                ]
+                                if len(method_matches) == 1:
+                                    candidates = method_matches
+                            else:
+                                external_instance_call = is_external_import_call(
+                                    class_name, imports
+                                )
+
+                    if not candidates and "." not in call_name:
+                        target_class = resolve_class(
+                            call_name, imports, file["path"], fn["qualifiedName"]
+                        )
+                        if target_class:
+                            edges.append({
+                                "source": fn["id"],
+                                "target": target_class["id"],
+                                "line": line
+                            })
+                            continue
+
                     first, *rest = call_name.split(".")
                     imported = imports.get(first)
                     if imported:
@@ -578,10 +793,24 @@ def analyse(root: Path):
                         target = qualified_index.get(qualified)
                         if target:
                             candidates = [target]
-                    if not candidates:
-                        candidates = short_index.get((module, short_name), [])
+                        else:
+                            suffix_matches = qualified_suffix_index.get(qualified, [])
+                            if len(suffix_matches) == 1:
+                                candidates = suffix_matches
+                    if not candidates and "." not in call_name:
+                        scope = fn["qualifiedName"].rsplit(".", 1)[0]
+                        while scope == module or scope.startswith(module + "."):
+                            local_matches = same_file_qualified_index.get(
+                                (file["path"], f"{scope}.{short_name}"), []
+                            )
+                            if local_matches:
+                                candidates = local_matches
+                                break
+                            if scope == module:
+                                break
+                            scope = scope.rsplit(".", 1)[0]
                     if not candidates and call_name.startswith("self.") and fn.get("parentClass"):
-                        owner = next((c for c in file["classes"] if c["id"] == fn["parentClass"]), None)
+                        owner = class_by_id.get(fn["parentClass"])
                         if owner:
                             candidates = [m for m in owner["methods"] if m["name"] == short_name]
 
@@ -590,10 +819,32 @@ def analyse(root: Path):
                     if target["id"] not in fn["calls"]:
                         fn["calls"].append(target["id"])
                     edges.append({"source": fn["id"], "target": target["id"], "line": line})
-                else:
+                elif not is_fortran and (
+                    is_external_import_call(call_name, imports) or external_instance_call
+                ):
                     label = call_name
                     if label not in fn["externalCalls"]:
                         fn["externalCalls"].append(label)
+
+            listener_line = fn.pop("_flowListenerLine", fn["line"])
+            if fn.get("flowRole") == "listener" and fn.get("parentClass"):
+                owner = class_by_id.get(fn["parentClass"])
+                if owner:
+                    for listener_target in fn["flowListeners"]:
+                        target_name = listener_target.rsplit(".", 1)[-1]
+                        listener_sources = [
+                            method for method in owner["methods"]
+                            if method["name"] == target_name
+                        ]
+                        if len(listener_sources) == 1:
+                            source = listener_sources[0]
+                            if fn["id"] not in source["calls"]:
+                                source["calls"].append(fn["id"])
+                            edges.append({
+                                "source": source["id"],
+                                "target": fn["id"],
+                                "line": listener_line
+                            })
 
         # Remove internal-only helper keys before serialising.
         file.pop("_imports", None)

@@ -116,37 +116,40 @@ function restoreNotes(analysis: Analysis, previous: Analysis): void {
   const classNotes = new Map<string, string>();
   const noteKey = (file: string, qualifiedName: string) =>
     JSON.stringify([file, qualifiedName]);
+  const collectFunctionNotes = (
+    filePath: string,
+    fn: Analysis["files"][number]["functions"][number]
+  ) => {
+    if (typeof fn.note === "string") {
+      functionNotes.set(noteKey(filePath, fn.qualifiedName), fn.note);
+    }
+    fn.nestedFunctions?.forEach(nested => collectFunctionNotes(filePath, nested));
+  };
+  const restoreFunctionNote = (
+    filePath: string,
+    fn: Analysis["files"][number]["functions"][number]
+  ) => {
+    const note = functionNotes.get(noteKey(filePath, fn.qualifiedName));
+    if (note !== undefined) fn.note = note;
+    fn.nestedFunctions?.forEach(nested => restoreFunctionNote(filePath, nested));
+  };
 
   for (const file of previous.files) {
-    for (const fn of file.functions) {
-      if (typeof fn.note === "string") {
-        functionNotes.set(noteKey(file.path, fn.qualifiedName), fn.note);
-      }
-    }
+    file.functions.forEach(fn => collectFunctionNotes(file.path, fn));
     for (const cls of file.classes) {
       if (typeof cls.note === "string") {
         classNotes.set(noteKey(file.path, cls.qualifiedName), cls.note);
       }
-      for (const fn of cls.methods) {
-        if (typeof fn.note === "string") {
-          functionNotes.set(noteKey(file.path, fn.qualifiedName), fn.note);
-        }
-      }
+      cls.methods.forEach(fn => collectFunctionNotes(file.path, fn));
     }
   }
 
   for (const file of analysis.files) {
-    for (const fn of file.functions) {
-      const note = functionNotes.get(noteKey(file.path, fn.qualifiedName));
-      if (note !== undefined) fn.note = note;
-    }
+    file.functions.forEach(fn => restoreFunctionNote(file.path, fn));
     for (const cls of file.classes) {
       const classNote = classNotes.get(noteKey(file.path, cls.qualifiedName));
       if (classNote !== undefined) cls.note = classNote;
-      for (const fn of cls.methods) {
-        const note = functionNotes.get(noteKey(file.path, fn.qualifiedName));
-        if (note !== undefined) fn.note = note;
-      }
+      cls.methods.forEach(fn => restoreFunctionNote(file.path, fn));
     }
   }
 }

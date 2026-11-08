@@ -174,6 +174,7 @@ button { cursor: pointer; }
   box-shadow: 0 1px 3px rgba(0,0,0,.12);
   cursor: pointer;
 }
+.external-class { border-color: var(--codeflow-class-blue); }
 .external-function-file {
   padding: 6px 8px;
   color: #fff;
@@ -199,6 +200,7 @@ button { cursor: pointer; }
 .class-title::after { content: "Class"; }
 .external-function-title::after,
 .function-title::after { content: "Function"; }
+.external-function-title.external-class-title::after { content: "Class"; }
 .external-function-title {
   display: block;
   width: 100%;
@@ -213,6 +215,10 @@ button { cursor: pointer; }
   text-align: left;
   overflow-wrap: anywhere;
   cursor: pointer;
+}
+.external-class .external-function-title {
+  border-top-color: var(--codeflow-class-blue);
+  background: var(--codeflow-class-blue);
 }
 .file-separator {
   flex: 0 0 0;
@@ -267,12 +273,37 @@ button { cursor: pointer; }
   background: var(--vscode-editor-background);
   box-shadow: 0 1px 3px rgba(0,0,0,.12);
 }
+.nested-functions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 4px 10px 10px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--vscode-panel-border);
+}
+.nested-functions-title {
+  color: var(--vscode-descriptionForeground);
+  font-size: 11px;
+  font-style: italic;
+}
+.nested-functions .function-card { width: 100%; }
 .function-header {
   min-height: 44px;
   display: flex;
   align-items: stretch;
   justify-content: space-between;
   gap: 8px;
+}
+.flow-role {
+  align-self: flex-start;
+  margin: 8px 8px 0 auto;
+  padding: 3px 6px;
+  color: var(--vscode-descriptionForeground);
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 3px;
+  font-size: 10px;
+  font-style: italic;
+  white-space: nowrap;
 }
 .function-title {
   align-self: flex-start;
@@ -355,5 +386,18 @@ button { cursor: pointer; }
   margin-top: 5px;
   overflow-x: hidden;
   overflow-y: auto;
+}
+.unresolved-calls {
+  margin: 8px 10px;
+  padding: 6px 7px;
+  border: 1px solid var(--vscode-panel-border);
+}
+.unresolved-call-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  max-height: 58px;
+  margin-top: 5px;
+  overflow: auto;
 }
 .muted, .empty { color: var(--vscode-descriptionForeground); font-size: 11px; }

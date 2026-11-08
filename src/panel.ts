@@ -165,6 +165,7 @@ export function showAnalysis(
         const functions = functionsById.get(fn.id) ?? [];
         functions.push(fn);
         functionsById.set(fn.id, functions);
+        fn.nestedFunctions?.forEach(addFunction);
       };
       for (const file of state.analysis.files) {
         for (const fn of file.functions) addFunction(fn);

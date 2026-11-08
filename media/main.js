@@ -24,6 +24,28 @@ let reanalysisPending = false;
 const maxViewHistory = 5;
 let viewHistory = [];
 let viewHistoryIndex = -1;
+const functionObjectsById = new Map();
+
+function indexFunction(fn) {
+  const functions = functionObjectsById.get(fn.id) || [];
+  functions.push(fn);
+  functionObjectsById.set(fn.id, functions);
+  (fn.nestedFunctions || []).forEach(indexFunction);
+}
+
+function rebuildFunctionIndex() {
+  functionObjectsById.clear();
+  for (const file of data.files) {
+    file.functions.forEach(indexFunction);
+    file.classes.forEach(cls => cls.methods.forEach(indexFunction));
+  }
+}
+
+function setFunctionNote(fn, value) {
+  for (const indexed of functionObjectsById.get(fn.id) || [fn]) {
+    indexed.note = value;
+  }
+}
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -116,8 +138,12 @@ function functionCard(fn) {
 
   const inputs = variablePanel("Inputs", fn.params);
   header.append(title);
+  if (fn.flowRole) {
+    const role = fn.flowRole === "start" ? "Start" : "Listener";
+    header.appendChild(el("span", `flow-role flow-role-${fn.flowRole}`, role));
+  }
   const note = noteEditor(fn.note, `Notes for ${fn.qualifiedName}`, value => {
-    fn.note = value;
+    setFunctionNote(fn, value);
   });
 
   const returns = el("section", "return-section");
@@ -131,19 +157,42 @@ function functionCard(fn) {
   returns.appendChild(returnList);
 
   card.append(header, inputs, note, returns);
+  if (fn.externalCalls?.length) {
+    const calls = el("section", "unresolved-calls");
+    calls.appendChild(el("strong", "variable-heading", "External imports"));
+    const callList = el("div", "unresolved-call-list");
+    fn.externalCalls.forEach(call => {
+      callList.appendChild(el("span", "variable-chip", `${call}()`));
+    });
+    calls.appendChild(callList);
+    card.appendChild(calls);
+  }
+  if (fn.nestedFunctions?.length) {
+    const nested = el("section", "nested-functions");
+    nested.appendChild(el("strong", "nested-functions-title", "Nested functions"));
+    fn.nestedFunctions.forEach(nestedFn => nested.appendChild(functionCard(nestedFn)));
+    card.appendChild(nested);
+  }
   return card;
 }
 
 function externalFunctionCard(fn, direction) {
-  const card = el("section", `external-function external-${direction}`);
+  const isClass = Array.isArray(fn.methods);
+  const card = el(
+    "section",
+    `external-function external-${direction}${isClass ? " external-class" : ""}`
+  );
   const positionId = `external-${direction}:${fn.id}`;
   positionBox(card, positionId);
   card.dataset[direction === "caller" ? "externalCallerId" : "externalCalleeId"] = fn.id;
-  const currentFunctionIds = new Set(currentFile.functions.map(currentFn => currentFn.id));
+  const currentNodeIds = new Set([
+    ...currentFile.functions.map(currentFn => currentFn.id),
+    ...currentFile.classes.map(cls => cls.id)
+  ]);
   const edgeCount = data.edges.filter(edge =>
     direction === "caller"
-      ? edge.source === fn.id && currentFunctionIds.has(edge.target)
-      : edge.target === fn.id && currentFunctionIds.has(edge.source)
+      ? edge.source === fn.id && currentNodeIds.has(edge.target)
+      : edge.target === fn.id && currentNodeIds.has(edge.source)
   ).length;
   const portOffset = direction === "caller" ? callPortOffset : entryPortOffset;
   card.style.minHeight =
@@ -151,11 +200,16 @@ function externalFunctionCard(fn, direction) {
   card.title = `Show ${fn.file} in the diagram; Ctrl+click to open in VS Code`;
   const file = el("div", "external-function-file", fn.file);
   file.title = fn.file;
-  const title = el("button", "external-function-title", fn.name);
+  const title = el(
+    "button",
+    `external-function-title${isClass ? " external-class-title" : ""}`,
+    fn.name
+  );
   title.type = "button";
   title.setAttribute("aria-label", `Show ${fn.file} in the diagram`);
   const note = noteEditor(fn.note, `Notes for ${fn.qualifiedName}`, value => {
-    fn.note = value;
+    if (isClass) fn.note = value;
+    else setFunctionNote(fn, value);
   });
   note.addEventListener("click", event => event.stopPropagation());
   note.addEventListener("keydown", event => event.stopPropagation());
@@ -199,6 +253,7 @@ function renderFile(filePath) {
 
       const classBox = el("section", "class-box");
       classBox.dataset.classId = cls.id;
+      classBox.dataset.nodeId = cls.id;
       positionBox(classBox, `class:${cls.id}`);
       classBox.appendChild(el("div", "class-title", cls.name));
       classBox.appendChild(noteEditor(cls.note, `Notes for ${cls.qualifiedName}`, value => {
@@ -225,17 +280,18 @@ function renderFile(filePath) {
 
   fileBox.appendChild(content);
 
-  const allFunctionsById = new Map(
-    data.files.flatMap(candidate => candidate.functions.map(fn => [fn.id, fn]))
-  );
+  const allNodesById = new Map(data.files.flatMap(candidate => [
+    ...candidate.functions.map(fn => [fn.id, fn]),
+    ...candidate.classes.map(cls => [cls.id, cls])
+  ]));
   fileBox.addEventListener("click", event => {
     if (!event.ctrlKey || !(event.target instanceof Element)) return;
 
     const functionCard = event.target.closest(".function-card");
     if (functionCard) {
-      const fn = allFunctionsById.get(functionCard.dataset.nodeId);
-      if (fn) {
-        vscode.postMessage({ command: "open", file: fn.file, line: fn.line });
+      const node = allNodesById.get(functionCard.dataset.nodeId);
+      if (node) {
+        vscode.postMessage({ command: "open", file: node.file, line: node.line });
         return;
       }
     }
@@ -249,26 +305,29 @@ function renderFile(filePath) {
     });
   });
   const incomingEdges = data.edges.filter(edge => {
-    const source = allFunctionsById.get(edge.source);
-    const target = allFunctionsById.get(edge.target);
+    const source = allNodesById.get(edge.source);
+    const target = allNodesById.get(edge.target);
     return source && target && source.file !== file.path && target.file === file.path;
   });
   const callers = [...new Set(incomingEdges.map(edge => edge.source))]
-    .map(id => allFunctionsById.get(id))
+    .map(id => allNodesById.get(id))
     .filter(Boolean)
     .sort((a, b) => a.file.localeCompare(b.file) || a.order - b.order);
-  const currentFunctionIds = new Set(file.functions.map(fn => fn.id));
+  const currentNodeIds = new Set([
+    ...file.functions.map(fn => fn.id),
+    ...file.classes.map(cls => cls.id)
+  ]);
   const internalEdgeCount = data.edges.filter(
-    edge => currentFunctionIds.has(edge.source) && currentFunctionIds.has(edge.target)
+    edge => currentNodeIds.has(edge.source) && currentNodeIds.has(edge.target)
   ).length;
   const outgoingEdges = data.edges.filter(edge => {
-    const source = allFunctionsById.get(edge.source);
-    const target = allFunctionsById.get(edge.target);
+    const source = allNodesById.get(edge.source);
+    const target = allNodesById.get(edge.target);
     return source && target && source.file === file.path && target.file !== file.path;
   });
   const outgoingOrder = new Map();
   for (const edge of outgoingEdges) {
-    const source = allFunctionsById.get(edge.source);
+    const source = allNodesById.get(edge.source);
     const current = outgoingOrder.get(edge.target);
     if (!current || source.order < current.sourceOrder ||
         (source.order === current.sourceOrder && edge.line < current.callLine)) {
@@ -279,7 +338,7 @@ function renderFile(filePath) {
     }
   }
   const callees = [...new Set(outgoingEdges.map(edge => edge.target))]
-    .map(id => allFunctionsById.get(id))
+    .map(id => allNodesById.get(id))
     .filter(Boolean)
     .sort((a, b) => {
       const aOrder = outgoingOrder.get(a.id);
@@ -292,7 +351,7 @@ function renderFile(filePath) {
 
   if (callers.length) {
     const externalCallers = el("aside", "external-callers");
-    externalCallers.setAttribute("aria-label", "Callers from other files");
+    externalCallers.setAttribute("aria-label", "Calls from other files");
     callers.forEach(fn => externalCallers.appendChild(externalFunctionCard(fn, "caller")));
     const separator = el("div", "file-separator");
     separator.style.flexBasis = `${incomingEdges.length * 10 + 16}px`;
@@ -309,7 +368,7 @@ function renderFile(filePath) {
     fileView.appendChild(separator);
     if (callees.length) {
       const externalCallees = el("aside", "external-callees");
-      externalCallees.setAttribute("aria-label", "Called functions from other files");
+      externalCallees.setAttribute("aria-label", "Calls to other files");
       callees.forEach(fn => externalCallees.appendChild(externalFunctionCard(fn, "callee")));
       fileView.appendChild(externalCallees);
     }
@@ -337,6 +396,10 @@ function drawCallArrows(file) {
   file.functions.forEach(fn => {
     const card = fileView.querySelector(`[data-node-id="${CSS.escape(fn.id)}"]`);
     if (card) cards.set(fn.id, card);
+  });
+  file.classes.forEach(cls => {
+    const card = fileView.querySelector(`[data-class-id="${CSS.escape(cls.id)}"]`);
+    if (card) cards.set(cls.id, card);
   });
   fileView.querySelectorAll("[data-external-caller-id]").forEach(card => {
     externalCallers.set(card.dataset.externalCallerId, card);
@@ -380,7 +443,9 @@ function drawCallArrows(file) {
     );
     const rect = node.getBoundingClientRect();
     const header = node.querySelector(
-      node.classList.contains("function-card") ? ".function-header" : ".external-function-title"
+      node.classList.contains("function-card")
+        ? ".function-header"
+        : ".external-function-title, .class-title"
     );
     const firstPortY = header
       ? (header.getBoundingClientRect().bottom - diagramRect.top) / zoom +
@@ -794,6 +859,7 @@ window.addEventListener("message", event => {
   if (event.data?.command === "update-analysis") {
     const selectedFile = picker.value;
     data = event.data.analysis;
+    rebuildFunctionIndex();
     const keepSelectedFile = data.files.some(file => file.path === selectedFile);
     populatePicker(keepSelectedFile ? selectedFile : event.data.initialFile);
     reconcileViewHistory(picker.value);
@@ -844,5 +910,6 @@ svg.innerHTML = `<defs>
 </defs>`;
 
 populatePicker();
+rebuildFunctionIndex();
 recordView(picker.value);
 render();
