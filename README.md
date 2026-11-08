@@ -1,6 +1,14 @@
 # CodeFlow Explorer 0.2 — file-based organigram
 
-This revision changes the diagram renderer to custom HTML/CSS + SVG. The analyser supports Python and Fortran source files. Mermaid is retained as a package dependency in this starter only for possible future graph modes, but the organigram itself does not use Mermaid: Mermaid flowcharts are not a good fit for variable panels inside nested file/class/function boxes.
+The diagram renders using custom HTML/CSS + SVG. The analyser currently only supports Python and Fortran source files.
+
+Tool's purpose is to ease first read and understanding of complex codebase flow (a need raised by increased AI coding usage).
+The notes feature is also here to allow easier/better knowledge transmission/retention of a codebase.
+
+## Disclaimer
+
+This project was entirely written by AI and might have poor
+code quality for which I apologise.
 
 ## Install and run
 
